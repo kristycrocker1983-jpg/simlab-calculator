@@ -1,8 +1,0 @@
-{
-  "buildCommand": "npm install -g serve && npm run build",
-  "outputDirectory": "build",
-  "devCommand": "npm start",
-  "env": {
-    "REACT_APP_BUILD": "production"
-  }
-}

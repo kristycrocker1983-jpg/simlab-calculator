@@ -19,6 +19,7 @@ export default function SimLabCalculator() {
     duration: ''
   });
   const [activeTab, setActiveTab] = useState('input');
+  const [editingId, setEditingId] = useState(null);
 
   const configHours = {
     'PLANNING-NEW': 4.5,
@@ -85,27 +86,75 @@ export default function SimLabCalculator() {
     }
   };
 
-  const totalHours = events.reduce((sum, e) => sum + e.hours, 0);
-  
+  const handleEditEvent = (event) => {
+    setFormData({
+      date: event.date,
+      program: event.program,
+      semester: event.semester,
+      scenario: event.scenario,
+      staff: event.staff,
+      phase: event.phase,
+      type: event.type,
+      room: event.room,
+      numLearners: event.numLearners,
+      technology: event.technology,
+      status: event.status,
+      duration: event.phase === 'RUN' ? event.duration.toString() : ''
+    });
+    setEditingId(event.id);
+    setActiveTab('input');
+  };
+
+  const handleUpdateEvent = () => {
+    if (!editingId) return;
+
+    const hours = calculateHours(formData.phase, formData.type, formData.duration);
+    const updatedEvent = {
+      id: editingId,
+      ...formData,
+      duration: formData.phase === 'RUN' ? parseFloat(formData.duration) : 0,
+      hours: hours
+    };
+
+    setEvents(events.map(e => e.id === editingId ? updatedEvent : e));
+    setEditingId(null);
+    setFormData({
+      date: '',
+      program: '',
+      semester: '',
+      scenario: '',
+      staff: '',
+      phase: '',
+      type: '',
+      room: '',
+      numLearners: '',
+      technology: '',
+      status: 'Planned',
+      duration: ''
+    });
+  };
+
+  // Calculate all statistics
+  let totalHours = 0;
   const scenarioStats = {};
-  const phaseStats = {};
+  const phaseStats = { 'PLANNING': 0, 'SETUP': 0, 'RUN': 0, 'RESET': 0, 'TEARDOWN': 0 };
   const monthlyStats = {};
 
   events.forEach(event => {
+    totalHours += event.hours;
     scenarioStats[event.scenario] = (scenarioStats[event.scenario] || 0) + event.hours;
     phaseStats[event.phase] = (phaseStats[event.phase] || 0) + event.hours;
     const month = event.date.substring(0, 7);
     monthlyStats[month] = (monthlyStats[month] || 0) + event.hours;
   });
 
-  const monthlyData = Object.entries(monthlyStats)
-    .sort()
-    .map(([month, hours]) => ({ month, hours: parseFloat(hours.toFixed(2)) }));
+  const monthlyData = Object.entries(monthlyStats).sort().map(([month, hours]) => ({ month, hours: parseFloat(hours.toFixed(2)) }));
 
-  const phaseData = Object.entries(phaseStats).map(([phase, hours]) => ({
+  const phaseColors = { 'PLANNING': '#3b82f6', 'SETUP': '#10b981', 'RUN': '#f59e0b', 'RESET': '#8b5cf6', 'TEARDOWN': '#ef4444' };
+  const phaseData = ['PLANNING', 'SETUP', 'RUN', 'RESET', 'TEARDOWN'].map(phase => ({
     name: phase,
-    value: parseFloat(hours.toFixed(2)),
-    color: { 'PLANNING': '#3b82f6', 'SETUP': '#10b981', 'RUN': '#f59e0b', 'RESET': '#8b5cf6', 'TEARDOWN': '#ef4444' }[phase] || '#6b7280'
+    value: parseFloat((phaseStats[phase] || 0).toFixed(2)),
+    color: phaseColors[phase]
   }));
 
   return (
@@ -113,38 +162,16 @@ export default function SimLabCalculator() {
       <h1 className="text-3xl font-bold mb-1">Simulation Lab Hours Calculator</h1>
       <p className="text-gray-600 mb-6">Shared Tracker for You & Ashley</p>
 
-      {/* Tabs */}
       <div className="flex gap-2 mb-6 border-b flex-wrap">
-        <button
-          onClick={() => setActiveTab('input')}
-          className={`px-4 py-2 font-semibold ${activeTab === 'input' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
-        >
-          Input Data
-        </button>
-        <button
-          onClick={() => setActiveTab('table')}
-          className={`px-4 py-2 font-semibold ${activeTab === 'table' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
-        >
-          Table View
-        </button>
-        <button
-          onClick={() => setActiveTab('dashboard')}
-          className={`px-4 py-2 font-semibold ${activeTab === 'dashboard' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
-        >
-          Dashboard
-        </button>
-        <button
-          onClick={() => setActiveTab('report')}
-          className={`px-4 py-2 font-semibold ${activeTab === 'report' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
-        >
-          Report
-        </button>
+        <button onClick={() => setActiveTab('input')} className={`px-4 py-2 font-semibold ${activeTab === 'input' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}>Input Data</button>
+        <button onClick={() => setActiveTab('table')} className={`px-4 py-2 font-semibold ${activeTab === 'table' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}>Table View</button>
+        <button onClick={() => setActiveTab('dashboard')} className={`px-4 py-2 font-semibold ${activeTab === 'dashboard' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}>Dashboard</button>
+        <button onClick={() => setActiveTab('report')} className={`px-4 py-2 font-semibold ${activeTab === 'report' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}>Report</button>
       </div>
 
-      {/* INPUT TAB */}
       {activeTab === 'input' && (
         <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <h2 className="font-bold text-lg mb-4">Add New Event</h2>
+          <h2 className="font-bold text-lg mb-4">{editingId ? 'Edit Event' : 'Add New Event'}</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} className="border rounded px-3 py-2" />
@@ -161,21 +188,19 @@ export default function SimLabCalculator() {
               <option value="TEARDOWN">TEARDOWN</option>
             </select>
 
-            {(formData.phase === 'PLANNING' || formData.phase === 'SETUP') && (
+            {formData.phase === 'PLANNING' && (
               <select value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value })} className="border rounded px-3 py-2">
                 <option value="">Select Type</option>
-                {formData.phase === 'PLANNING' && (
-                  <>
-                    <option value="NEW">NEW Scenario</option>
-                    <option value="EXISTING">EXISTING Scenario</option>
-                  </>
-                )}
-                {formData.phase === 'SETUP' && (
-                  <>
-                    <option value="FIRST">FIRST Run</option>
-                    <option value="PROCEEDING">PROCEEDING Run</option>
-                  </>
-                )}
+                <option value="NEW">NEW Scenario</option>
+                <option value="EXISTING">EXISTING Scenario</option>
+              </select>
+            )}
+
+            {formData.phase === 'SETUP' && (
+              <select value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value })} className="border rounded px-3 py-2">
+                <option value="">Select Type</option>
+                <option value="FIRST">FIRST Run</option>
+                <option value="PROCEEDING">PROCEEDING Run</option>
               </select>
             )}
 
@@ -193,19 +218,18 @@ export default function SimLabCalculator() {
             </select>
           </div>
 
-          <button onClick={handleAddEvent} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex items-center gap-2">
-            <Plus size={18} /> Add Event
+          <button onClick={editingId ? handleUpdateEvent : handleAddEvent} className={`${editingId ? 'bg-orange-600 hover:bg-orange-700' : 'bg-blue-600 hover:bg-blue-700'} text-white px-4 py-2 rounded flex items-center gap-2`}>
+            <Plus size={18} /> {editingId ? 'Update Event' : 'Add Event'}
           </button>
 
-          {events.length > 0 && (
-            <div className="bg-green-50 p-4 rounded-lg border border-green-200 mt-4">
-              <p className="text-green-800 font-semibold">✓ {events.length} events ready</p>
-            </div>
+          {editingId && (
+            <button onClick={() => { setEditingId(null); setFormData({ date: '', program: '', semester: '', scenario: '', staff: '', phase: '', type: '', room: '', numLearners: '', technology: '', status: 'Planned', duration: '' }); }} className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded ml-2">
+              Cancel Edit
+            </button>
           )}
         </div>
       )}
 
-      {/* TABLE TAB */}
       {activeTab === 'table' && (
         <div className="bg-white p-6 rounded-lg border border-gray-200 overflow-x-auto">
           {events.length === 0 ? (
@@ -230,17 +254,9 @@ export default function SimLabCalculator() {
                     <td className="border border-blue-200 px-3 py-2 font-semibold">{event.scenario}</td>
                     <td className="border border-blue-200 px-3 py-2">{event.staff}</td>
                     <td className="border border-blue-200 px-3 py-2 text-center text-xs font-semibold">{event.phase}</td>
-                    <td className="border border-blue-200 px-3 py-2 text-center text-xs">
-                      <span className={`px-2 py-1 rounded ${event.status === 'Complete' ? 'bg-green-200 text-green-800' : event.status === 'In Progress' ? 'bg-yellow-200 text-yellow-800' : 'bg-gray-200 text-gray-800'}`}>
-                        {event.status}
-                      </span>
-                    </td>
+                    <td className="border border-blue-200 px-3 py-2 text-center text-xs"><span className={`px-2 py-1 rounded ${event.status === 'Complete' ? 'bg-green-200 text-green-800' : event.status === 'In Progress' ? 'bg-yellow-200 text-yellow-800' : 'bg-gray-200 text-gray-800'}`}>{event.status}</span></td>
                     <td className="border border-blue-200 px-3 py-2 text-right font-semibold">{event.hours.toFixed(1)}</td>
-                    <td className="border border-blue-200 px-3 py-2 text-center">
-                      <button onClick={() => handleDeleteEvent(event.id)} className="text-red-600 hover:text-red-800">
-                        <Trash2 size={16} />
-                      </button>
-                    </td>
+                    <td className="border border-blue-200 px-3 py-2 text-center"><button onClick={() => handleEditEvent(event)} className="text-blue-600 hover:text-blue-800 mr-2">✏️</button><button onClick={() => handleDeleteEvent(event.id)} className="text-red-600 hover:text-red-800"><Trash2 size={16} /></button></td>
                   </tr>
                 ))}
               </tbody>
@@ -256,7 +272,6 @@ export default function SimLabCalculator() {
         </div>
       )}
 
-      {/* DASHBOARD TAB */}
       {activeTab === 'dashboard' && (
         <div className="bg-white p-6 rounded-lg border border-gray-200 space-y-4">
           {events.length === 0 ? (
@@ -293,26 +308,23 @@ export default function SimLabCalculator() {
                 </div>
               )}
 
-              {phaseData.length > 0 && (
-                <div className="bg-white p-4 rounded border border-green-200">
-                  <h4 className="font-semibold text-sm mb-3">Hours by Phase</h4>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <PieChart>
-                      <Pie data={phaseData} cx="50%" cy="50%" labelLine={false} label={({ name, value }) => `${name}: ${value}h`} outerRadius={80} fill="#8884d8" dataKey="value">
-                        {phaseData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
+              <div className="bg-white p-4 rounded border border-green-200">
+                <h4 className="font-semibold text-sm mb-3">Hours by Phase</h4>
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie data={phaseData} cx="50%" cy="50%" labelLine={false} label={({ name, value }) => `${name}: ${value}h`} outerRadius={80} fill="#8884d8" dataKey="value">
+                      {phaseData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </>
           )}
         </div>
       )}
 
-      {/* REPORT TAB */}
       {activeTab === 'report' && (
         <div className="bg-white p-8 rounded border border-purple-200">
           {events.length === 0 ? (
@@ -353,19 +365,17 @@ export default function SimLabCalculator() {
                 </div>
               )}
 
-              {phaseData.length > 0 && (
-                <div>
-                  <h3 className="font-semibold mb-3">Hours by Phase</h3>
-                  <div className="space-y-2">
-                    {phaseData.map(phase => (
-                      <div key={phase.name} className="flex justify-between">
-                        <span className="text-sm">{phase.name}</span>
-                        <span className="font-semibold">{phase.value.toFixed(1)} hrs</span>
-                      </div>
-                    ))}
-                  </div>
+              <div>
+                <h3 className="font-semibold mb-3">Hours by Phase</h3>
+                <div className="space-y-2">
+                  {phaseData.map(phase => (
+                    <div key={phase.name} className="flex justify-between p-2 rounded" style={{ backgroundColor: phase.color + '20' }}>
+                      <span className="text-sm font-semibold">{phase.name}</span>
+                      <span className="font-semibold">{phase.value.toFixed(1)} hrs</span>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
             </div>
           )}
         </div>
